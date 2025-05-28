@@ -1,220 +1,166 @@
--- Made by Marcell
--- Feature-rich script with orbit, notifications, and more
 
+-- Made by Lax Script | Reworked
 local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
 
-print("Made by Marcell")
-
--- Send notification to player
+-- Message on execution
 StarterGui:SetCore("SendNotification", {
-    Title = "Script Loaded";
-    Text = "Made by Marcell enjoy the script";
-    Duration = 5;
+	Title = "Nice IP James",
+	Text = "Script Loaded Successfully",
+	Duration = 4
 })
 
--- === IP Address display ===
-local ScreenGui = Instance.new("ScreenGui", player.PlayerGui)
-ScreenGui.Name = "MarcellScriptUI"
+-- UI Setup
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "FeatureUI"
 
-local ipLabel = Instance.new("TextLabel", ScreenGui)
-ipLabel.Size = UDim2.new(1, 0, 0, 25)
-ipLabel.Position = UDim2.new(0, 0, 0, 0)
-ipLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-ipLabel.TextColor3 = Color3.new(1, 0, 0)
-ipLabel.Font = Enum.Font.GothamBold
-ipLabel.TextSize = 18
-ipLabel.Text = "I have your IP address James: 192.168.1.1"
-ipLabel.BorderSizePixel = 0
-ipLabel.ZIndex = 10
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Size = UDim2.new(0, 250, 0, 310)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+mainFrame.BorderSizePixel = 0
 
--- Variables
-local orbitParts = {}
-local orbiting = false
-local orbitRadius = 15
-local orbitSpeed = 1 -- radians per second
+local layout = Instance.new("UIListLayout", mainFrame)
+layout.Padding = UDim.new(0, 6)
+layout.FillDirection = Enum.FillDirection.Vertical
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Utility: get all unanchored parts in workspace except those in player's character
-local function getUnanchoredParts()
-    local parts = {}
-    for _, part in pairs(workspace:GetDescendants()) do
-        if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(char) then
-            table.insert(parts, part)
-        end
-    end
-    return parts
+local function createButton(text, callback)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.9, 0, 0, 30)
+	btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	btn.Text = text
+	btn.BorderSizePixel = 0
+	btn.AutoButtonColor = true
+	btn.MouseButton1Click:Connect(callback)
+	btn.Parent = mainFrame
 end
 
--- Orbit function
-local orbitAngle = 0
-local function startOrbit()
-    orbitParts = getUnanchoredParts()
-    if #orbitParts == 0 then
-        warn("No unanchored parts to orbit!")
-        return
-    end
-    orbiting = true
-    print("Orbit started with "..#orbitParts.." parts.")
-end
-
-local function stopOrbit()
-    orbiting = false
-    print("Orbit stopped")
-end
-
--- Feature toggles
-local features = {
-    fly = false,
-    orbit = false,
-    noclip = false,
-    speedBoost = false,
-}
-
--- Fly feature (simple controlled flying)
-local flySpeed = 50
+-- Feature States
 local flying = false
-local flyVelocity = Vector3.new(0,0,0)
-local flyDirection = Vector3.new(0,0,0)
+local noclip = false
+local speed = false
+local orbit = false
 
--- Speed boost multiplier
-local speedMultiplier = 3
+-- Speed control
+local baseSpeed = 16
+local boost = 3
 
--- Noclip function - makes character parts non-collidable
-local function setNoclip(value)
-    for _, part in pairs(char:GetChildren()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not value
-        end
-    end
+-- Noclip logic
+local function applyNoclip(state)
+	for _, part in pairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = not state
+		end
+	end
 end
 
--- Basic UI to toggle features (buttons below the IP label)
-local function createButton(text, position, callback)
-    local btn = Instance.new("TextButton", ScreenGui)
-    btn.Size = UDim2.new(0, 150, 0, 35)
-    btn.Position = position
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Text = text
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 18
-    btn.AutoButtonColor = true
-    btn.BorderSizePixel = 0
-    btn.ZIndex = 10
-    btn.MouseButton1Click:Connect(callback)
-    return btn
+-- Fly logic
+local function flyControl()
+	RunService.RenderStepped:Connect(function()
+		if flying then
+			local dir = Vector3.new()
+			if UIS:IsKeyDown(Enum.KeyCode.W) then dir += workspace.CurrentCamera.CFrame.LookVector end
+			if UIS:IsKeyDown(Enum.KeyCode.S) then dir -= workspace.CurrentCamera.CFrame.LookVector end
+			if UIS:IsKeyDown(Enum.KeyCode.A) then dir -= workspace.CurrentCamera.CFrame.RightVector end
+			if UIS:IsKeyDown(Enum.KeyCode.D) then dir += workspace.CurrentCamera.CFrame.RightVector end
+			if UIS:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0, 1, 0) end
+			if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0, 1, 0) end
+
+			if dir.Magnitude > 0 then
+				hrp.Velocity = dir.Unit * 60
+			else
+				hrp.Velocity = Vector3.zero
+			end
+		end
+	end)
+end
+flyControl()
+
+-- Orbit logic
+local orbitParts = {}
+local orbitAngle = 0
+local function getUnanchored()
+	local parts = {}
+	for _, p in pairs(workspace:GetDescendants()) do
+		if p:IsA("BasePart") and not p.Anchored and not p:IsDescendantOf(char) then
+			table.insert(parts, p)
+		end
+	end
+	return parts
 end
 
--- Fly toggle
-local flyBtn = createButton("Toggle Fly", UDim2.new(0, 20, 0, 35), function()
-    features.fly = not features.fly
-    flying = features.fly
-    if flying then
-        print("Fly enabled")
-        StarterGui:SetCore("SendNotification", {Title = "Fly", Text = "Fly enabled", Duration = 2})
-    else
-        print("Fly disabled")
-        StarterGui:SetCore("SendNotification", {Title = "Fly", Text = "Fly disabled", Duration = 2})
-    end
-end)
-
--- Orbit toggle
-local orbitBtn = createButton("Toggle Orbit Parts", UDim2.new(0, 20, 0, 80), function()
-    features.orbit = not features.orbit
-    if features.orbit then
-        startOrbit()
-        StarterGui:SetCore("SendNotification", {Title = "Orbit", Text = "Orbit enabled", Duration = 2})
-    else
-        stopOrbit()
-        StarterGui:SetCore("SendNotification", {Title = "Orbit", Text = "Orbit disabled", Duration = 2})
-    end
-end)
-
--- Noclip toggle
-local noclipBtn = createButton("Toggle Noclip", UDim2.new(0, 20, 0, 125), function()
-    features.noclip = not features.noclip
-    setNoclip(features.noclip)
-    StarterGui:SetCore("SendNotification", {
-        Title = "Noclip",
-        Text = features.noclip and "Noclip enabled" or "Noclip disabled",
-        Duration = 2
-    })
-end)
-
--- Speed boost toggle
-local speedBtn = createButton("Toggle Speed Boost", UDim2.new(0, 20, 0, 170), function()
-    features.speedBoost = not features.speedBoost
-    if features.speedBoost then
-        char.Humanoid.WalkSpeed = 16 * speedMultiplier
-        StarterGui:SetCore("SendNotification", {Title = "Speed", Text = "Speed boost enabled", Duration = 2})
-    else
-        char.Humanoid.WalkSpeed = 16
-        StarterGui:SetCore("SendNotification", {Title = "Speed", Text = "Speed boost disabled", Duration = 2})
-    end
-end)
-
--- Fly control keys
-local function updateFlyDirection()
-    local moveDir = Vector3.new(0,0,0)
-    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-        moveDir = moveDir + (workspace.CurrentCamera.CFrame.LookVector)
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-        moveDir = moveDir - (workspace.CurrentCamera.CFrame.LookVector)
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-        moveDir = moveDir - (workspace.CurrentCamera.CFrame.RightVector)
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-        moveDir = moveDir + (workspace.CurrentCamera.CFrame.RightVector)
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-        moveDir = moveDir + Vector3.new(0,1,0)
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-        moveDir = moveDir - Vector3.new(0,1,0)
-    end
-    if moveDir.Magnitude > 0 then
-        return moveDir.Unit * flySpeed
-    else
-        return Vector3.new(0,0,0)
-    end
-end
-
--- Main loop
 RunService.RenderStepped:Connect(function(dt)
-    if features.orbit and orbiting and #orbitParts > 0 then
-        orbitAngle = orbitAngle + orbitSpeed * dt
-        for i, part in ipairs(orbitParts) do
-            local angle = orbitAngle + (2 * math.pi / #orbitParts) * i
-            local offset = Vector3.new(math.cos(angle) * orbitRadius, 0, math.sin(angle) * orbitRadius)
-            local targetPos = hrp.Position + offset
-            -- Tween smoothly to the new orbit position
-            TweenService:Create(part, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)}):Play()
-        end
-    end
-
-    if flying then
-        local dir = updateFlyDirection()
-        hrp.Velocity = dir
-    else
-        -- Reset velocity to zero when fly off
-        hrp.Velocity = Vector3.new(0,0,0)
-    end
+	if orbit then
+		orbitAngle += dt
+		for i, part in ipairs(orbitParts) do
+			local angle = orbitAngle + (2 * math.pi / #orbitParts) * i
+			local offset = Vector3.new(math.cos(angle) * 10, 0, math.sin(angle) * 10)
+			local targetPos = hrp.Position + offset
+			TweenService:Create(part, TweenInfo.new(0.1), {CFrame = CFrame.new(targetPos)}):Play()
+		end
+	end
 end)
 
--- Reset WalkSpeed on character respawn
-player.CharacterAdded:Connect(function(character)
-    char = character
-    hrp = char:WaitForChild("HumanoidRootPart")
-    wait(0.1)
-    char.Humanoid.WalkSpeed = features.speedBoost and 16 * speedMultiplier or 16
-    setNoclip(features.noclip)
+-- UI Buttons
+createButton("Toggle Fly", function()
+	flying = not flying
+	StarterGui:SetCore("SendNotification", {Title = "Fly", Text = flying and "Enabled" or "Disabled", Duration = 2})
+end)
+
+createButton("Toggle Noclip", function()
+	noclip = not noclip
+	applyNoclip(noclip)
+	StarterGui:SetCore("SendNotification", {Title = "Noclip", Text = noclip and "Enabled" or "Disabled", Duration = 2})
+end)
+
+createButton("Toggle Speed Boost", function()
+	speed = not speed
+	char:FindFirstChild("Humanoid").WalkSpeed = speed and baseSpeed * boost or baseSpeed
+	StarterGui:SetCore("SendNotification", {Title = "Speed", Text = speed and "Boosted" or "Normal", Duration = 2})
+end)
+
+createButton("Toggle Orbit", function()
+	orbit = not orbit
+	if orbit then orbitParts = getUnanchored() end
+	StarterGui:SetCore("SendNotification", {Title = "Orbit", Text = orbit and "Enabled" or "Disabled", Duration = 2})
+end)
+
+-- Username Teleport
+local teleportInput = Instance.new("TextBox")
+teleportInput.Size = UDim2.new(0.9, 0, 0, 30)
+teleportInput.PlaceholderText = "Enter username to teleport to"
+teleportInput.Text = ""
+teleportInput.Font = Enum.Font.Gotham
+teleportInput.TextSize = 14
+teleportInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+teleportInput.TextColor3 = Color3.new(1, 1, 1)
+teleportInput.BorderSizePixel = 0
+teleportInput.Parent = mainFrame
+
+createButton("Teleport to User", function()
+	local target = teleportInput.Text
+	if target and #target > 0 then
+		ReplicatedStorage:WaitForChild("TeleportPlayer"):FireServer(target)
+	end
+end)
+
+-- Respawn Compatibility
+player.CharacterAdded:Connect(function(c)
+	char = c
+	hrp = char:WaitForChild("HumanoidRootPart")
+	if speed then char:FindFirstChild("Humanoid").WalkSpeed = baseSpeed * boost end
+	applyNoclip(noclip)
 end)
